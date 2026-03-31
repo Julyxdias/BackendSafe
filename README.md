@@ -88,7 +88,7 @@ Local → Área → Quadro → Dispositivo → Canal → Medição
 | Servidor ASGI | Uvicorn |
 | Frontend | HTML + CSS + JavaScript (Vanilla) |
 | Gráficos | Chart.js 4 |
-| Deploy API | Railway / Render |
+| Deploy API | Render |
 | Deploy Frontend | Vercel |
 | Containerização | Docker + Docker Compose |
 
@@ -362,7 +362,7 @@ const API_BASE = "http://localhost:8000";  // desenvolvimento
 
 | Variável | Padrão | Descrição |
 |---|---|---|
-| `DATABASE_URL` | `postgresql://postgres:1234@localhost:5432/energysafe` | String de conexão do banco |
+| `DATABASE_URL` | `postgresql://postgres:******@localhost:5432/seubanco` | String de conexão do banco |
 
 ---
 
