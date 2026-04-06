@@ -22,7 +22,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://energy-safe-9m2q.vercel.app/"],  # troque pelo domínio do Vercel em produção ex: ["https://seu-projeto.vercel.app"]
+    allow_origins=["https://energy-safe.vercel.app/financeiro.html"],  # troque pelo domínio do Vercel em produção ex: ["https://seu-projeto.vercel.app"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
