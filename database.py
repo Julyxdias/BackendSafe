@@ -5,7 +5,7 @@ import os
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://julya:1234@dpg-d7sibvugvqtc739nql6g-a.oregon-postgres.render.com/safe_db_lcwn"
+    "postgresql://julya:iGPtMXgRPMLvB5k41z3YJ3IFB28NEMJM@dpg-d7sibvugvqtc739nql6g-a/safe_db_lcwn"
 )
 
 engine = create_engine(
