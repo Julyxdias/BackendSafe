@@ -14,7 +14,7 @@ LOCAL → QUADRO → DISPOSITIVO → CANAL → MEDIÇÃO → ALERTA
 | Ambiente | URL |
 |---|---|
 | Produção | https://backendsafe.onrender.com |
-| Documentação interativa (Swagger) | https://backendsafe.onrender.com/docs |
+| Documentação interativa (Swagger) | [https://backendsafe.onrender.com/docs](https://backendsafe.onrender.com/docs) |
 
 > O plano gratuito do Render hiberna após 15 min de inatividade. A primeira requisição pode demorar até 50 segundos para acordar o serviço.
 
