@@ -23,13 +23,13 @@ Uso:
     await client.remover_credencial("usuario@email.com")
 
 Dependências:
-    pip install httpx pydantic python-dotenv
+    pip install httpx python-dotenv
 """
 
-import os
+import asyncio
 import logging
+import os
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from typing import Optional
 
@@ -41,7 +41,7 @@ log = logging.getLogger(__name__)
 
 
 # ──────────────────────────────────────────────────────────────
-# Modelos de dados (espelham a saída do serviço)
+# Modelos de dados
 # ──────────────────────────────────────────────────────────────
 
 @dataclass
@@ -52,10 +52,10 @@ class ItemFatura:
 
 @dataclass
 class Conta:
-    mes_referencia: str                 # "04/2025"
-    vencimento: Optional[str]           # "10/05/2025"
+    mes_referencia: str
+    vencimento: Optional[str]
     valor: Decimal
-    status: str                         # "em aberto" | "pago" | "vencido"
+    status: str
     codigo_barras: Optional[str]
     conta_pdf_url: Optional[str]
 
@@ -79,7 +79,7 @@ class DadosOcr:
     leitura_anterior_data: Optional[str]
     leitura_data: Optional[str]
     leitura_proxima_data: Optional[str]
-    energia: Optional[Decimal]          # kWh
+    energia: Optional[Decimal]
     valor: Optional[Decimal]
     vencimento: Optional[str]
     preco_te: Optional[Decimal]
@@ -105,7 +105,6 @@ class RespostaEnel:
 # ──────────────────────────────────────────────────────────────
 
 class EnelServiceError(Exception):
-    """Erro retornado pelo microserviço com código e mensagem estruturados."""
     def __init__(self, code: str, message: str, status: int):
         self.code = code
         self.message = message
@@ -125,10 +124,12 @@ class EnelClient:
     """
     Cliente assíncrono para o microserviço Enel SP.
 
-    Parâmetros de ambiente:
-        ENEL_SERVICE_URL  — URL base do microserviço (ex: http://localhost:3000)
-        ENEL_SERVICE_KEY  — Bearer token opcional para autenticar chamadas internas
-        ENEL_TIMEOUT      — Timeout em segundos (padrão: 90 — scraping é lento)
+    Variáveis de ambiente:
+        ENEL_SERVICE_URL  — URL base do microserviço
+        ENEL_SERVICE_KEY  — Bearer token opcional
+        ENEL_TIMEOUT      — Timeout HTTP em segundos (padrão: 30)
+                            O polling aguarda o scraping terminar —
+                            não confundir com o tempo total do job.
     """
 
     def __init__(
@@ -138,8 +139,8 @@ class EnelClient:
         timeout: float | None = None,
     ):
         self._base_url = (base_url or os.environ["ENEL_SERVICE_URL"]).rstrip("/")
-        self._api_key = api_key or os.getenv("ENEL_SERVICE_KEY")
-        self._timeout = timeout or float(os.getenv("ENEL_TIMEOUT", "90"))
+        self._api_key  = api_key or os.getenv("ENEL_SERVICE_KEY")
+        self._timeout  = timeout or float(os.getenv("ENEL_TIMEOUT", "30"))
 
     # ── HTTP base ──────────────────────────────────────────────
 
@@ -151,28 +152,17 @@ class EnelClient:
 
     async def _post(self, path: str, body: dict) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as http:
-            log.debug("POST %s%s", self._base_url, path)
-            resp = await http.post(
-                f"{self._base_url}{path}",
-                json=body,
-                headers=self._headers(),
-            )
+            resp = await http.post(f"{self._base_url}{path}", json=body, headers=self._headers())
             return self._handle(resp)
 
     async def _get(self, path: str) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as http:
-            resp = await http.get(
-                f"{self._base_url}{path}",
-                headers=self._headers(),
-            )
+            resp = await http.get(f"{self._base_url}{path}", headers=self._headers())
             return self._handle(resp)
 
     async def _delete(self, path: str) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as http:
-            resp = await http.delete(
-                f"{self._base_url}{path}",
-                headers=self._headers(),
-            )
+            resp = await http.delete(f"{self._base_url}{path}", headers=self._headers())
             return self._handle(resp)
 
     @staticmethod
@@ -182,20 +172,43 @@ class EnelClient:
         except Exception:
             resp.raise_for_status()
             return {}
-
         if resp.is_error:
-            err = data.get("error", {})
-            code = err.get("code", "UNKNOWN")
-            msg  = err.get("message", resp.text)
+            err    = data.get("error", {})
+            code   = err.get("code", "UNKNOWN")
+            msg    = err.get("message", resp.text)
             status = resp.status_code
-
             if status in (503, 504):
                 raise EnelServiceUnavailable(code, msg, status)
             raise EnelServiceError(code, msg, status)
-
         return data
 
-    # ── Parsing ───────────────────────────────────────────────
+    # ── Polling ────────────────────────────────────────────────
+
+    async def _aguardar_job(self, job_id: str, intervalo: float = 5.0) -> dict:
+        """
+        Faz poll em GET /api/enel-sp/job/:id até status concluido ou erro.
+        O scraping do Playwright pode levar 30-120s — o poll aguarda sem timeout.
+        """
+        while True:
+            data   = await self._get(f"/api/enel-sp/job/{job_id}")
+            status = data.get("status")
+
+            if status == "concluido":
+                return data["result"]
+
+            if status == "erro":
+                err         = data.get("error", {})
+                code        = err.get("code", "UNKNOWN")
+                msg         = err.get("message", "Erro no job")
+                status_code = err.get("status", 503)
+                if status_code in (503, 504):
+                    raise EnelServiceUnavailable(code, msg, status_code)
+                raise EnelServiceError(code, msg, status_code)
+
+            log.debug("Job %s status=%s — aguardando %.0fs...", job_id, status, intervalo)
+            await asyncio.sleep(intervalo)
+
+    # ── Parsing ────────────────────────────────────────────────
 
     @staticmethod
     def _parse_conta(c: dict) -> Conta:
@@ -255,7 +268,7 @@ class EnelClient:
             ocr=EnelClient._parse_ocr(data.get("ocr")),
         )
 
-    # ── API pública ───────────────────────────────────────────
+    # ── API pública ────────────────────────────────────────────
 
     async def consultar(
         self,
@@ -264,43 +277,38 @@ class EnelClient:
         login_senha: str,
         salvar_credencial: bool = False,
     ) -> RespostaEnel:
-        """Consulta passando as credenciais diretamente."""
+        """Dispara job e aguarda conclusão via polling."""
         data = await self._post("/api/enel-sp/contas", {
-            "instalacao": instalacao,
-            "login_email": login_email,
-            "login_senha": login_senha,
+            "instalacao":       instalacao,
+            "login_email":      login_email,
+            "login_senha":      login_senha,
             "salvar_credencial": salvar_credencial,
         })
-        return self._parse_resposta(data)
+        result = await self._aguardar_job(data["job_id"])
+        return self._parse_resposta(result)
 
     async def consultar_salvo(self, login_email: str) -> RespostaEnel:
-        """Consulta usando credencial já armazenada no vault do microserviço."""
+        """Dispara job com credencial do vault e aguarda via polling."""
         data = await self._post("/api/enel-sp/contas/salvo", {
             "login_email": login_email,
         })
-        return self._parse_resposta(data)
+        result = await self._aguardar_job(data["job_id"])
+        return self._parse_resposta(result)
 
-    async def salvar_credencial(
-        self,
-        login_email: str,
-        login_senha: str,
-        instalacao: str,
-    ) -> None:
-        """Salva ou atualiza credencial no vault criptografado do microserviço."""
+    async def salvar_credencial(self, login_email: str, login_senha: str, instalacao: str) -> None:
+        """Salva credencial no vault do microserviço."""
         await self._post("/api/enel-sp/contas", {
-            "instalacao": instalacao,
-            "login_email": login_email,
-            "login_senha": login_senha,
+            "instalacao":        instalacao,
+            "login_email":       login_email,
+            "login_senha":       login_senha,
             "salvar_credencial": True,
         })
         log.info("Credencial salva no vault: %s", login_email)
 
     async def listar_credenciais(self) -> list[str]:
-        """Retorna os e-mails com credenciais armazenadas no vault."""
         data = await self._get("/api/secrets")
         return data.get("emails", [])
 
     async def remover_credencial(self, login_email: str) -> bool:
-        """Remove credencial do vault. Retorna True se existia."""
         data = await self._delete(f"/api/secrets/{login_email}")
         return data.get("deleted", False)
