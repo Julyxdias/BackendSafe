@@ -12,22 +12,32 @@ router = APIRouter(prefix="/alertas", tags=["Alertas"])
 
 @router.get("/", response_model=List[schemas.AlertaOut])
 def listar_alertas(
-    canal_id:  Optional[int]  = Query(None),
-    nivel:     Optional[str]  = Query(None),   # info, aviso, critico
-    tipo:      Optional[str]  = Query(None),   # sobrecorrente, consumo_fora_horario, queda_brusca
-    resolvido: Optional[bool] = Query(None),
+    canal_id:       Optional[int]  = Query(None),
+    dispositivo_id: Optional[int]  = Query(None),
+    nivel:          Optional[str]  = Query(None),   # info, aviso, critico
+    tipo:           Optional[str]  = Query(None),   # sobrecorrente, consumo_fora_horario, queda_brusca
+    resolvido:      Optional[bool] = Query(None),
     skip:  int = Query(0, ge=0),
     limit: int = Query(100, le=500),
     db: Session = Depends(get_db),
 ):
     """
     Lista alertas gerados pelos triggers do PostgreSQL.
-    Filtre por canal, nível, tipo ou status de resolução.
+    Filtre por canal, dispositivo, nível, tipo ou status de resolução.
     """
     query = db.query(models.Alerta)
 
-    if canal_id is not None:
+    if canal_id is not None and canal_id > 0:
         query = query.filter(models.Alerta.canal_id == canal_id)
+
+    if dispositivo_id is not None and dispositivo_id > 0:
+        # JOIN com CanalMedicao para filtrar pelos canais do dispositivo
+        query = (
+            query
+            .join(models.CanalMedicao, models.CanalMedicao.id == models.Alerta.canal_id)
+            .filter(models.CanalMedicao.dispositivo_id == dispositivo_id)
+        )
+
     if nivel:
         query = query.filter(models.Alerta.nivel == nivel.lower())
     if tipo:

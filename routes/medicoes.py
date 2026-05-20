@@ -119,15 +119,27 @@ def criar_medicao(medicao: schemas.MedicaoCreate, db: Session = Depends(get_db))
 
     dados = medicao.model_dump()
 
-    # Calcula potência se não enviada (P = I × V)
-    # Se tensao real vier do ESP32, usa ela; caso contrário usa 220V como fallback
+
+        # DEPOIS
     if dados.get("potencia") is None:
         corrente = dados.get("corrente")
-        tensao   = dados.get("tensao") or 220.0   # fallback enquanto sensor não está instalado
+        tensao   = dados.get("tensao") or 220.0
         if corrente:
             dados["potencia"] = round(corrente * tensao, 2)
             if not dados.get("tensao"):
                 dados["tensao"] = tensao
+
+    # Preenche potencia_ativa com fallback para potencia (compatibilidade com ESPs antigos)
+    if dados.get("potencia_ativa") is None and dados.get("potencia") is not None:
+        dados["potencia_ativa"] = dados["potencia"]
+
+    # Calcula fator_potencia a partir de P e S, se não vier do ESP32
+    if dados.get("fator_potencia") is None:
+        p = dados.get("potencia_ativa")
+        s = dados.get("potencia_aparente")
+        if p and s and s > 0:
+            dados["fator_potencia"] = round(min(p / s, 1.0), 4)
+
 
     db_medicao = models.Medicao(**dados)
     db.add(db_medicao)
@@ -142,23 +154,35 @@ def criar_medicao(medicao: schemas.MedicaoCreate, db: Session = Depends(get_db))
 
 @router.get("/", response_model=List[schemas.MedicaoOut])
 def listar_medicoes(
-    canal_id: Optional[int]      = Query(None),
-    inicio:   Optional[datetime] = Query(None),
-    fim:      Optional[datetime] = Query(None),
-    valido:   Optional[bool]     = Query(None),
-    skip:     int                = Query(0, ge=0),
-    limit:    int                = Query(100, le=1000),
+    canal_id:       Optional[int]      = Query(None),
+    dispositivo_id: Optional[int]      = Query(None),
+    inicio:         Optional[datetime] = Query(None),
+    fim:            Optional[datetime] = Query(None),
+    valido:         Optional[bool]     = Query(None),
+    skip:           int                = Query(0, ge=0),
+    limit:          int                = Query(100, le=1000),
     db: Session = Depends(get_db),
 ):
     query = db.query(models.Medicao)
+
     if canal_id is not None:
         query = query.filter(models.Medicao.canal_id == canal_id)
+
+    if dispositivo_id is not None and dispositivo_id > 0:
+        # JOIN com CanalMedicao para filtrar pelos canais do dispositivo
+        query = (
+            query
+            .join(models.CanalMedicao, models.CanalMedicao.id == models.Medicao.canal_id)
+            .filter(models.CanalMedicao.dispositivo_id == dispositivo_id)
+        )
+
     if inicio:
         query = query.filter(models.Medicao.timestamp >= inicio)
     if fim:
         query = query.filter(models.Medicao.timestamp <= fim)
     if valido is not None:
         query = query.filter(models.Medicao.valido == valido)
+
     return query.order_by(models.Medicao.timestamp.desc()).offset(skip).limit(limit).all()
 
 

@@ -1,5 +1,5 @@
-from pydantic import BaseModel
-from typing import Optional, List
+from pydantic import BaseModel, ConfigDict
+from typing import Optional, List   
 from datetime import datetime, date
 
 
@@ -16,7 +16,7 @@ class LocalCreate(LocalBase): pass
 
 class LocalOut(LocalBase):
     id: int
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -32,7 +32,7 @@ class AreaCreate(AreaBase): pass
 
 class AreaOut(AreaBase):
     id: int
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -50,7 +50,7 @@ class QuadroCreate(QuadroBase): pass
 
 class QuadroOut(QuadroBase):
     id: int
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -68,7 +68,7 @@ class DispositivoCreate(DispositivoBase): pass
 
 class DispositivoOut(DispositivoBase):
     id: int
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -85,8 +85,12 @@ class CanalMedicaoCreate(CanalMedicaoBase): pass
 
 class CanalMedicaoOut(CanalMedicaoBase):
     id: int
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
+
+# ──────────────────────────────────────────
+# MEDIÇÃO
+# ──────────────────────────────────────────
 
 # ──────────────────────────────────────────
 # MEDIÇÃO
@@ -98,6 +102,10 @@ class MedicaoBase(BaseModel):
     corrente: Optional[float] = None
     tensao: Optional[float] = None
     potencia: Optional[float] = None
+    potencia_ativa: Optional[float] = None      # W
+    potencia_aparente: Optional[float] = None   # VA
+    potencia_reativa: Optional[float] = None    # VAr
+    fator_potencia: Optional[float] = None      # cos(ϕ) — 0.0 a 1.0
     valido: bool = True
 
 class MedicaoCreate(MedicaoBase): pass
@@ -105,7 +113,7 @@ class MedicaoCreate(MedicaoBase): pass
 class MedicaoOut(MedicaoBase):
     id: int
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -132,7 +140,7 @@ class AlertaOut(BaseModel):
     timestamp: datetime
     resolvido: bool
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -149,7 +157,7 @@ class ConsumoDiarioCreate(ConsumoDiarioBase): pass
 class ConsumoDiarioOut(ConsumoDiarioBase):
     id: int
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -168,7 +176,7 @@ class FaturaCreate(FaturaBase): pass
 class FaturaOut(FaturaBase):
     id: int
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -187,7 +195,7 @@ class RateioCreate(RateioBase): pass
 class RateioOut(RateioBase):
     id: int
     gerado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -205,7 +213,7 @@ class TarifaCreate(TarifaBase): pass
 class TarifaOut(TarifaBase):
     id: int
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -226,7 +234,7 @@ class MetaCreate(MetaBase): pass
 class MetaOut(MetaBase):
     id: int
     criado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ──────────────────────────────────────────
@@ -240,4 +248,4 @@ class DispositivoStatusOut(BaseModel):
     ultima_leitura: Optional[datetime] = None
     potencia_atual: Optional[float] = None
     atualizado_em: Optional[datetime] = None
-    class Config: from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

@@ -6,7 +6,6 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from database import Base
 
-
 class Local(Base):
     __tablename__ = "locais"
 
@@ -89,14 +88,18 @@ class CanalMedicao(Base):
 class Medicao(Base):
     __tablename__ = "medicoes"
 
-    id        = Column(BigInteger, primary_key=True, index=True)
-    timestamp = Column(DateTime, nullable=False)
-    canal_id  = Column(Integer, ForeignKey("canais_medicao.id"), nullable=True)
-    corrente  = Column(Float, nullable=True)
-    tensao    = Column(Float, nullable=True)
-    potencia  = Column(Float, nullable=True)
-    valido    = Column(Boolean, default=True)
-    criado_em = Column(DateTime, server_default=func.now())
+    id                = Column(BigInteger, primary_key=True, index=True)
+    timestamp         = Column(DateTime, nullable=False)
+    canal_id          = Column(Integer, ForeignKey("canais_medicao.id"), nullable=True)
+    corrente          = Column(Float, nullable=True)
+    tensao            = Column(Float, nullable=True)
+    potencia          = Column(Float, nullable=True)
+    potencia_ativa    = Column(Float, nullable=True)   # W
+    potencia_aparente = Column(Float, nullable=True)   # VA
+    potencia_reativa  = Column(Float, nullable=True)   # VAr
+    fator_potencia    = Column(Float, nullable=True)   # cos(ϕ)
+    valido            = Column(Boolean, default=True)
+    criado_em         = Column(DateTime, server_default=func.now())
 
     canal = relationship("CanalMedicao", back_populates="medicoes")
 
@@ -222,3 +225,4 @@ class DispositivoStatus(Base):
     )
 
     dispositivo = relationship("Dispositivo", back_populates="status")
+
